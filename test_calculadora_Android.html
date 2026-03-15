@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Calculadora</title>
+    <style>
+        :root {
+            --bg-android: #000000;
+            --text-main: #e5e3e1;
+            --btn-num: #1c1d1f;
+            --btn-op: #1c1d1f;
+            --accent-blue: #004a77;
+            --magic-glow: #919191;
+        }
+
+        * {
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            outline: none;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-android);
+            font-family: 'Roboto', sans-serif;
+            position: fixed;
+            touch-action: none;
+        }
+
+        #magic-line {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 60%; height: 2px; background-color: var(--magic-glow);
+            z-index: 100; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+        }
+
+        .secret-zone {
+            position: absolute; top: 0;
+            width: 60px;
+            height: 60px;
+            z-index: 1000;
+        }
+        #config-btn { left: 0; }
+        #exit-btn { right: 0; }
+
+        .app-container {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .display {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding: 15px 25px;
+            min-height: 120px;
+            overflow: hidden;
+        }
+
+        #screen {
+            font-size: 88px;
+            font-weight: 300;
+            color: var(--text-main);
+            text-align: right;
+            white-space: nowrap;
+            line-height: 1;
+            transition: font-size 0.15s ease;
+        }
+
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 10px 15px 35px 15px;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: var(--bg-android);
+        }
+
+        button {
+            border: none;
+            border-radius: 16px;
+            height: 17vw;
+            max-height: 75px;
+            font-size: 26px;
+            background-color: var(--btn-num);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-top { color: #8ab4f8; font-weight: bold; font-size: 22px; }
+
+        .btn-equal { 
+            background-color: var(--accent-blue) !important;
+            color: white !important;
+            grid-row: span 2;
+            height: auto;
+            max-height: 150px;
+            font-size: 32px;
+            border-radius: 28px;
+        }
+
+        button:active { filter: brightness(1.4); }
+    </style>
+</head>
+<body>
+
+    <div id="magic-line"></div>
+    <div id="config-btn" class="secret-zone" onclick="abrirConfig()"></div>
+    <div id="exit-btn" class="secret-zone" onclick="window.location.assign('index.html')"></div>
+
+    <div class="app-container">
+        <div class="display">
+            <div id="screen">0</div>
+        </div>
+
+        <div class="numpad">
+            <button class="btn-mem" onclick="mem('MC')">MC</button>
+            <button class="btn-mem" onclick="mem('M+')">M+</button>
+            <button class="btn-mem" onclick="mem('M-')">M-</button>
+            <button class="btn-mem" onclick="mem('MR')">MR</button>
+
+            <button class="btn-top" onclick="reset()">C</button>
+            <button class="btn-top" onclick="op('/')">÷</button>
+            <button class="btn-top" onclick="op('*')">×</button>
+            <button class="btn-top" onclick="del()">⌫</button>
+
+            <button onclick="press('7')">7</button>
+            <button onclick="press('8')">8</button>
+            <button onclick="press('9')">9</button>
+            <button class="btn-top" onclick="op('-')">−</button>
+
+            <button onclick="press('4')">4</button>
+            <button onclick="press('5')">5</button>
+            <button onclick="press('6')">6</button>
+            <button class="btn-top" onclick="op('+')">+</button>
+
+            <button onclick="press('1')">1</button>
+            <button onclick="press('2')">2</button>
+            <button onclick="press('3')">3</button>
+            <button class="btn-equal" onclick="calc()">=</button>
+
+            <button onclick="magic()">%</button>
+            <button onclick="press('0')">0</button>
+            <button onclick="press('.')">,</button>
+        </div>
+    </div>
+
+<script>
+        let cur = "", pre = "", oper = null;
+        let n1 = 0, n2 = 0, magicMode = false, step = 0;
+        let diffArr = [], diffIdx = 0, mClicks = 0, mTimer = null;
+        let isForcing = false, memoria = 0; 
+        
+        let currentStage = 1; 
+        let waitingForNewInput = false; // Variable clave para limpiar tras forzar
+
+        const screenEl = document.getElementById('screen');
+        const magicLine = document.getElementById('magic-line');
+
+        function ajustarTamanoFuente(t) {
+            const l = t.length;
+            screenEl.style.fontSize = (l > 13 ? 35 : l > 10 ? 45 : l > 8 ? 55 : l > 6 ? 70 : 88) + "px";
+        }
+
+        function updateDisplay(val) {
+            let f = (magicMode && step === 2 && (val === "0" || val === "")) ? "" : (val || "0");
+            ajustarTamanoFuente(f);
+            screenEl.innerText = f;
+        }
+
+        function press(v) {
+            // Si acabamos de mostrar un resultado forzado, el siguiente número limpia la pantalla
+            if (waitingForNewInput) {
+                cur = "";
+                waitingForNewInput = false;
+            }
+
+            if (magicMode && step === 2) {
+                if (diffIdx < diffArr.length) {
+                    if (diffIdx === 0) cur = "";
+                    let nextChar = diffArr[diffIdx];
+                    if (diffIdx === 0 && nextChar === "0" && diffArr[diffIdx + 1] !== '.') {
+                        diffIdx++;
+                        nextChar = diffArr[diffIdx];
+                    }
+                    cur += nextChar;
+                    diffIdx++;
+                    if (diffArr[diffIdx] === '.') {
+                        cur += '.';
+                        diffIdx++;
+                    }
+                }
+            } else {
+                if (cur === "0" && v !== ".") {
+                    cur = v;
+                } else {
+                    cur = (cur === "0" && v === ".") ? "0." : (cur === "" ? v : cur + v);
+                }
+            }
+            updateDisplay(cur);
+        }
+
+        function op(o) {
+            // Si el usuario presiona un operador (+, -, etc) tras el resultado, usamos ese resultado como N1
+            waitingForNewInput = false; 
+
+            if (isForcing) return; 
+
+            if (magicMode) {
+                step++;
+                if (step === 1) { 
+                    n1 = parseFloat(cur || 0); cur = ""; updateDisplay(""); 
+                } else if (step === 2) {
+                    n2 = parseFloat(cur || 0);
+                    isForcing = true; 
+                    let targetKey = (currentStage === 1) ? 'forceV1' : 'forceV2';
+                    let target = Number(localStorage.getItem(targetKey) || 0);
+                    let diff = (o === '*' || o === '×') ? target / (n1 * n2 || 1) : target - (n1 + n2);
+                    diffArr = (o === '*' || o === '×' ? parseFloat(diff.toFixed(6)) : diff).toString().split('');
+                    diffIdx = 0; cur = ""; updateDisplay("");
+                }
+            } else { 
+                oper = o; pre = cur; cur = ""; updateDisplay(""); 
+            }
+        }
+
+        function calc() {
+            if (magicMode && step >= 2) {
+                let targetKey = (currentStage === 1) ? 'forceV1' : 'forceV2';
+                cur = (localStorage.getItem(targetKey) || "0").toString();
+                
+                if (currentStage === 1) {
+                    currentStage = 2; 
+                    step = 0;         
+                    isForcing = false; 
+                    waitingForNewInput = true; // ACTIVADO: El próximo número borrará el V1
+                } else {
+                    currentStage = 1; 
+                    magicMode = false; 
+                    step = 0;
+                    isForcing = false;
+                    waitingForNewInput = true;
+                    if (magicLine) magicLine.style.opacity = "0";
+                }
+                
+            } else {
+                try { cur = eval(pre + (oper ? oper.replace('×', '*').replace('÷', '/') : "") + (cur || "0")).toString(); } catch(e) { cur = "0"; }
+            }
+            updateDisplay(cur); pre = ""; oper = null;
+        }
+
+        function magic() {
+            mClicks++; clearTimeout(mTimer);
+            mTimer = setTimeout(() => { mClicks = 0; }, 800);
+            if (mClicks === 2) {
+                magicMode = true; step = 0; isForcing = false; currentStage = 1; waitingForNewInput = false;
+                if (magicLine) magicLine.style.opacity = "0.6";
+                if (navigator.vibrate) navigator.vibrate([60, 50, 60]);
+                mClicks = 0;
+            }
+        }
+
+        function reset() { 
+            cur = ""; pre = ""; oper = null; magicMode = false; step = 0; 
+            isForcing = false; currentStage = 1; waitingForNewInput = false;
+            if (magicLine) magicLine.style.opacity = "0"; 
+            updateDisplay("0"); 
+        }
+
+        function del() { if (!isForcing) { cur = cur.slice(0, -1); updateDisplay(cur); } }
+
+        function abrirConfig() { 
+            let v1 = prompt("Valor Forzado 1 (V1):", localStorage.getItem('forceV1') || "");
+            if(v1 !== null) localStorage.setItem('forceV1', v1);
+            let v2 = prompt("Valor Forzado 2 (V2):", localStorage.getItem('forceV2') || "");
+            if(v2 !== null) localStorage.setItem('forceV2', v2);
+        }
+
+        function mem(t) { if(isForcing) return; let n = parseFloat(cur || 0); if(t=='MC') memoria=0; else if(t=='M+') memoria+=n; else if(t=='M-') memoria-=n; else if(t=='MR') cur=memoria.toString(); updateDisplay(cur); }
+    
+        window.history.pushState(null, null, window.location.href);
+        window.addEventListener('popstate', function () {
+            window.history.pushState(null, null, window.location.href);
+            if (navigator.vibrate) navigator.vibrate(50);
+        });
+    </script>
+</body>
+</html>

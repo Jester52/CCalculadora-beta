@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+        <link rel="manifest" href="manifest.json">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Calculadora">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cronos Magic Hub</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Gradiente azul profundo y elegante */
+            background: linear-gradient(135deg, #001f3f 0%, #004a77 50%, #0074d9 100%);
+            font-family: 'Roboto', sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 4px;
+            margin: 0;
+            text-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .btn-menu {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 18px;
+            font-size: 16px;
+            border-radius: 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-menu:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary {
+            background: #c2e7ff;
+            color: #003355;
+            font-weight: bold;
+            border: none;
+        }
+
+        .version {
+            position: absolute;
+            bottom: 20px;
+            font-size: 10px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logo-container">
+        <h1>CRONOS</h1>
+        <p style="font-weight: 100; opacity: 0.8;">Mentalismo Digital</p>
+    </div>
+
+    <div class="menu-container">
+        <button class="btn-menu btn-primary" onclick="irA('calculadora.html')">INICIAR</button>
+        <button class="btn-menu" onclick="irA('configuracion.html')">CONFIGURACIÓN</button>
+        <button class="btn-menu" onclick="irA('instrucciones.html')">INSTRUCCIONES</button>
+    </div>
+
+    <div id="version-display" class="version"></div>
+
+    <script>
+       
+       
+    // ESTA ES LA ÚNICA LÍNEA QUE TENDRÁS QUE CAMBIAR EN EL FUTURO
+    const APP_VERSION = '3.0.2'; 
+    let cur = "", pre = "", oper = null;
+    // Al cargar la página, inyectamos la versión en el HTML y verificamos actualizaciones
+    window.onload = function() {
+        // 1. Mostrar la versión en el div
+        const versionEl = document.getElementById('version-display');
+        if (versionEl) {
+            versionEl.innerText = 'V ' + APP_VERSION + ' - Calculadora Pro System';
+        }
+
+        // 2. Lógica para forzar actualización sin borrar localStorage
+        const savedVersion = localStorage.getItem('app_version');
+        if (savedVersion !== APP_VERSION) {
+            localStorage.setItem('app_version', APP_VERSION);
+            // Esto obliga al navegador a refrescar la caché si cambias la versión
+            window.location.reload(true); 
+        }
+    };
+    
+
+        //Verifica la versión
+        function checkVersion() {
+    const savedVersion = localStorage.getItem('app_version');
+    if (savedVersion !== APP_VERSION) {
+        // La versión cambió, actualizamos el registro
+        localStorage.setItem('app_version', APP_VERSION);
+        // Recargamos forzosamente para limpiar caché, pero los datos persisten
+        window.location.reload(true); 
+    }
+}
+// Ejecuta esto al cargar la app
+checkVersion();
+
+
+function irA(url) {
+    if(window.navigator.vibrate) window.navigator.vibrate(20);
+    
+    // Si el usuario presionó "INICIAR"
+    if (url === 'calculadora.html') {
+        // Detectamos el Sistema Operativo
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        let destino;
+
+        if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+            // Es un dispositivo Apple
+            destino = 'test_calculadora_IOS.html';
+        } else {
+            // Por defecto asumimos Android o similares
+            destino = 'test_calculadora_Android.html';
+        }
+
+        console.log("Sistema detectado. Redirigiendo a: " + destino);
+        url = destino;
+    }
+
+    // Efecto de fade out
+    document.body.style.opacity = '0';
+    document.body.style.transition = 'opacity 0.5s';
+    
+    setTimeout(() => {
+        window.location.href = url;
+    }, 500);
+}
+
+
+
+
+//Código para el sw
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker registrado', reg))
+      .catch(err => console.warn('Error al registrar SW', err));
+  });
+}
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Calculadora Pro</title>
+    <style>
+        :root { --bg-color: #000; --text-color: #fff; --btn-gray: #333; --btn-light: #a5a5a5; --btn-orange: #ff9f0a; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        html, body { 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            overflow: hidden; position: fixed;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            height: 100vh;
+            /* Ajuste crítico para iPhone 15 / Dynamic Island */
+            padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+            padding-top: env(safe-area-inset-top);
+        }
+
+        .display {
+            padding: 0 30px 10px 30px;
+            text-align: right;
+            font-size: 90px;
+            font-weight: 300;
+            flex-grow: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px; /* Reducido ligeramente para ganar espacio vertical */
+            padding: 0 18px;
+        }
+
+        button {
+            border: none;
+            border-radius: 50%;
+            aspect-ratio: 1 / 1;
+            font-size: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button:active { filter: brightness(1.5); }
+
+        .btn-num { background-color: var(--btn-gray); color: white; }
+        .btn-spec { background-color: var(--btn-light); color: black; font-size: 28px; }
+        .btn-op { background-color: var(--btn-orange); color: white; font-size: 40px; }
+        .btn-zero { grid-column: span 2; aspect-ratio: auto; border-radius: 100px; justify-content: flex-start; padding-left: 30px; }
+
+        /* Panel Config */
+        #admin-panel { display: none; position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: #222; padding: 20px; border-radius: 20px; z-index: 1000; width: 80%; border: 1px solid #444; text-align: center; }
+        #admin-panel input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; font-size: 18px; color: #000; }
+
+        #magic-line { 
+            position: absolute; 
+            top: 0; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            width: 90%; 
+            height: 3px; 
+            background: #7e7e7e; 
+            opacity: 0; 
+            transition: opacity 0.3s; 
+            z-index: 9999; 
+            pointer-events: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="magic-line"></div>
+    <div id="btn-back-menu" style="position: absolute; top: 0; right: 0; width: 80px; height: 80px; z-index: 999;" onclick="window.location.href='index.html'"></div>
+    <div style="position:absolute; top:0; left:0; width:80px; height:80px; z-index:999;" onclick="abrirConfig()"></div>
+
+    <div id="admin-panel">
+        <h2 style="margin:0; color:var(--btn-orange);">CONFIGURAR</h2>
+        <input type="number" id="valForzado1" placeholder="Primer Número (V1)">
+        <input type="number" id="valForzado2" placeholder="Segundo Número (V2)">
+        <button onclick="cerrarConfig()" style="width:100%; height:45px; border-radius:10px; background:var(--btn-orange); color:white; font-size:18px; font-weight:bold; aspect-ratio: auto;">GUARDAR</button>
+    </div>
+
+    <div class="app-container">
+        <div class="display" id="screen">0</div>
+        
+        <div class="grid">
+            <button class="btn-spec" onclick="backspace()">⌫</button>
+            <button class="btn-spec" onclick="resetCalc()">AC</button>
+            <button class="btn-spec" onclick="handleMagicTrigger()">%</button>
+            <button class="btn-op" onclick="setOp('/')">÷</button>
+            <button class="btn-num" onclick="numClick('7')">7</button>
+            <button class="btn-num" onclick="numClick('8')">8</button>
+            <button class="btn-num" onclick="numClick('9')">9</button>
+            <button class="btn-op" onclick="setOp('*')">×</button>
+            <button class="btn-num" onclick="numClick('4')">4</button>
+            <button class="btn-num" onclick="numClick('5')">5</button>
+            <button class="btn-num" onclick="numClick('6')">6</button>
+            <button class="btn-op" onclick="setOp('-')">-</button>
+            <button class="btn-num" onclick="numClick('1')">1</button>
+            <button class="btn-num" onclick="numClick('2')">2</button>
+            <button class="btn-num" onclick="numClick('3')">3</button>
+            <button class="btn-op" onclick="setOp('+')">+</button>
+            <button class="btn-num" onclick="toggleSign()">+/-</button>
+            <button class="btn-num" onclick="numClick('0')">0</button>
+            <button class="btn-num" onclick="numClick('.')">,</button>
+            <button class="btn-op" onclick="calcular()">=</button>
+        </div>
+    </div>
+
+<script>
+    let cur = "", pre = "", oper = null;
+    let n1 = 0, n2 = 0, magicMode = false, step = 0;
+    let diffArr = [], diffIdx = 0, mClicks = 0, mTimer = null;
+    let currentOper = ""; 
+    let isForcing = false;
+    
+    // --- VARIABLES DE SECUENCIA ---
+    let currentStage = 1; 
+    let waitingForNewInput = false;
+
+    const screenEl = document.getElementById('screen');
+    const magicIndicator = document.getElementById('magic-line');
+
+    function ajustarTamanoFuente(texto) {
+        const largo = texto.length;
+        let nuevoTamano = 90;
+        if (largo > 6 && largo <= 8) nuevoTamano = 70;
+        else if (largo > 8 && largo <= 10) nuevoTamano = 55;
+        else if (largo > 10 && largo <= 13) nuevoTamano = 45;
+        else if (largo > 13) nuevoTamano = 35;
+        screenEl.style.fontSize = nuevoTamano + "px";
+    }
+
+    function updateDisplay(val) {
+        let textoFinal = val || "0";
+        if (magicMode && step === 2 && (val === "" || val === "0")) textoFinal = "";
+        ajustarTamanoFuente(textoFinal);
+        screenEl.innerText = textoFinal;
+    }
+
+    function numClick(v) {
+        if (waitingForNewInput) {
+            cur = "";
+            waitingForNewInput = false;
+        }
+
+        if (magicMode && step === 2) {
+            if (diffIdx < diffArr.length) {
+                if (diffIdx === 0) cur = ""; 
+                cur += diffArr[diffIdx];
+                diffIdx++;
+                if (diffArr[diffIdx] === '.') {
+                    cur += '.';
+                    diffIdx++;
+                }
+            }
+        } else {
+            if (cur === "0" && v !== ".") {
+                cur = v;
+            } else {
+                cur = (cur === "0" && v === ".") ? "0." : (cur === "" ? v : cur + v);
+            }
+        }
+        updateDisplay(cur);
+    }
+
+    function setOp(o) {
+        waitingForNewInput = false;
+        if (isForcing) return; 
+
+        currentOper = o; 
+        if (magicMode) {
+            step++;
+            if (step === 1) { 
+                n1 = parseFloat(cur || 0); cur = ""; updateDisplay(""); 
+            } else if (step === 2) {
+                n2 = parseFloat(cur || 0);
+                isForcing = true;
+                (currentOper === '*' || currentOper === '×') ? prepararForzajePorProducto() : prepararForzajePorSuma();
+                cur = ""; updateDisplay("");
+            }
+        } else { 
+            oper = o; pre = cur; cur = ""; updateDisplay("");
+        }
+    }
+
+    function calcular() {
+        if (magicMode && step >= 2) {
+            let targetKey = (currentStage === 1) ? 'forceV1' : 'forceV2';
+            cur = (localStorage.getItem(targetKey) || "0").toString();
+            
+            if (currentStage === 1) {
+                currentStage = 2; 
+                step = 0;         
+                isForcing = false; 
+                waitingForNewInput = true;
+            } else {
+                currentStage = 1; 
+                magicMode = false; 
+                step = 0;
+                isForcing = false;
+                waitingForNewInput = true;
+                if (magicIndicator) magicIndicator.style.opacity = "0";
+            }
+        } else {
+            if (isForcing) return;
+            try { 
+                let expression = pre + (oper ? oper.replace('×', '*').replace('÷', '/') : "") + (cur || "0");
+                cur = eval(expression).toString(); 
+            } catch(e) { cur = "0"; }
+        }
+        updateDisplay(cur);
+        pre = ""; oper = null;
+    }
+
+    function prepararForzajePorSuma() {
+        let targetKey = (currentStage === 1) ? 'forceV1' : 'forceV2';
+        let targetStr = (localStorage.getItem(targetKey) || "0");
+        if (targetStr.startsWith('0') && targetStr.length > 1) targetStr = targetStr.substring(1);
+        
+        let target = Number(targetStr);
+        let diff = target - (n1 + n2);
+        diffArr = diff.toString().split('');
+        diffIdx = 0;
+    }
+
+    function prepararForzajePorProducto() {
+        let targetKey = (currentStage === 1) ? 'forceV1' : 'forceV2';
+        let targetStr = (localStorage.getItem(targetKey) || "0");
+        if (targetStr.startsWith('0') && targetStr.length > 1) targetStr = targetStr.substring(1);
+        
+        let target = Number(targetStr);
+        let diff = target / (n1 * n2 || 1);
+        diffArr = parseFloat(diff.toFixed(6)).toString().split('');
+        diffIdx = 0;
+    }
+
+    function handleMagicTrigger() {
+        mClicks++;
+        clearTimeout(mTimer);
+        mTimer = setTimeout(() => { mClicks = 0; }, 800);
+        
+        if (mClicks === 2) {
+            magicMode = true; 
+            step = 0; 
+            isForcing = false;
+            currentStage = 1;
+            waitingForNewInput = false;
+
+            if (magicIndicator) magicIndicator.style.opacity = "1";
+            if (navigator.vibrate) navigator.vibrate(100);
+            mClicks = 0;
+        }
+    }
+
+    function resetCalc() { 
+        cur = ""; pre = ""; oper = null; magicMode = false; step = 0; isForcing = false;
+        currentStage = 1; waitingForNewInput = false;
+        if (magicIndicator) magicIndicator.style.opacity = "0"; 
+        updateDisplay("0"); 
+    }
+
+    function backspace() { if (!isForcing) { cur = cur.slice(0, -1); updateDisplay(cur); } }
+    
+    function abrirConfig() {
+        document.getElementById('admin-panel').style.display = 'block';
+        document.getElementById('valForzado1').value = localStorage.getItem('forceV1') || "";
+        document.getElementById('valForzado2').value = localStorage.getItem('forceV2') || "";
+    }
+
+    function cerrarConfig() {
+        localStorage.setItem('forceV1', document.getElementById('valForzado1').value);
+        localStorage.setItem('forceV2', document.getElementById('valForzado2').value);
+        document.getElementById('admin-panel').style.display = 'none';
+    }
+
+    function toggleSign() { if (!isForcing) { cur = (parseFloat(cur) * -1).toString(); updateDisplay(cur); } }
+
+    window.history.pushState(null, null, window.location.href);
+    window.addEventListener('popstate', function () {
+        window.history.pushState(null, null, window.location.href);
+        if (navigator.vibrate) navigator.vibrate(50);
+    });
+
+</script>
+</body>
+</html>
